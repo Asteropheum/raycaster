@@ -1,6 +1,11 @@
+mod frame_buffer;
+
+use crate::frame_buffer::FrameBuffer;
+use std::convert::TryInto;
 use std::f32::consts::PI;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
+use std::ops::Deref;
 
 /// Store each RGBA u8 component in one u32 integer.
 fn pack_color(r: u8, g: u8, b: u8, a: Option<u8>) -> u32 {
@@ -28,29 +33,6 @@ fn drop_ppm_image(filename: &str, image: &[u32], width: usize, height: usize) {
         let mut a = 0;
         unpack_color(color, &mut r, &mut g, &mut b, &mut a);
         writer.write_all(&[r, g, b]).expect("can not write to file");
-    }
-}
-
-fn draw_rectangle(
-    image: &mut Vec<u32>,
-    img_width: usize,
-    img_height: usize,
-    x: usize,
-    y: usize,
-    w: usize,
-    h: usize,
-    color: u32,
-) {
-    assert_eq!(image.len(), img_width * img_height);
-    for i in 0..w {
-        for j in 0..h {
-            let cx = x + i;
-            let cy = y + j;
-            if (cx >= img_width) || (cy >= img_height) {
-                continue;
-            }
-            image[cx + cy * img_width] = color;
-        }
     }
 }
 
@@ -150,8 +132,11 @@ fn main() {
     let player_fov_degree: f32 = 60.0;
     let player_fov: f32 = player_fov_degree * PI / 180.0;
 
-    let mut frame_buffer: Vec<u32> =
-        vec![pack_color(255, 255, 255, None); window_width * window_height];
+    let mut frame_buffer = FrameBuffer::new(
+        window_width,
+        window_height,
+        vec![pack_color(255, 255, 255, None); (window_width * window_height) as usize],
+    );
 
     let mut wall_texture: Vec<u32> = Vec::new();
     let mut wall_texture_size: usize = 0;
@@ -170,7 +155,7 @@ fn main() {
         }
     };
 
-    let rect_w = window_width / (map_width * 2);
+    let rect_w = window_width / (map_width * 2) as i32;
     let rect_h = window_height / map_height;
 
     let output_dir = "./out/";
@@ -179,20 +164,19 @@ fn main() {
     // Draw map
     for j in 0..map_height {
         for i in 0..map_width {
-            if map[i + j * map_width] == ' ' {
+            if map[(i as i32 + j * map_width as i32) as usize] == ' ' {
                 continue;
             }
-            let rect_x = i * rect_w;
-            let rect_y = j * rect_h;
+            let rect_x = i as i32 * rect_w;
+            let rect_y = j as i32 * rect_h;
 
-            let texture_id: usize = map[i + j * map_width].to_digit(10).unwrap() as usize;
+            let texture_id: usize = map[(i as i32 + j * map_width as i32) as usize]
+                .to_digit(10)
+                .unwrap() as usize;
             assert!(texture_id < wall_texture_count);
 
-            draw_rectangle(
-                &mut frame_buffer,
-                window_width,
-                window_height,
-                rect_x,
+            frame_buffer.draw_rectangle(
+                rect_x.try_into().unwrap(),
                 rect_y,
                 rect_w,
                 rect_h,
@@ -217,8 +201,7 @@ fn main() {
             let mut pix_x = (cx * rect_w as f32) as i32;
             let mut pix_y = (cy * rect_h as f32) as i32;
 
-            frame_buffer[pix_x as usize + pix_y as usize * window_width] =
-                pack_color(160, 160, 160, None);
+            frame_buffer.set_pixel(pix_x, pix_y, pack_color(160, 160, 160, None));
 
             if map[cx as usize + cy as usize * map_width] != ' ' {
                 let texture_id = map[cx as usize + cy as usize * map_width]
@@ -265,12 +248,17 @@ fn main() {
                         continue;
                     }
 
-                    frame_buffer[pix_x as usize + pix_y as usize * window_width] = *item;
+                    frame_buffer.set_pixel(pix_x, pix_y, *item);
                 }
                 break;
             }
         }
     }
 
-    drop_ppm_image("./out/out.ppm", &frame_buffer, window_width, window_height);
+    drop_ppm_image(
+        "./out/out.ppm",
+        &*frame_buffer.image,
+        window_width as usize,
+        window_height as usize,
+    );
 }
