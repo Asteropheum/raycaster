@@ -1,1 +1,1 @@
-## Ray casting renderer written in Rust
+## Ray casting renderer
