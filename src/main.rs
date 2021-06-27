@@ -1,11 +1,13 @@
 mod frame_buffer;
 mod map;
+mod player;
 
 use crate::frame_buffer::FrameBuffer;
 use crate::map::Map;
 use std::f32::consts::PI;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
+use crate::player::Player;
 
 /// Store each RGBA u8 component in one u32 integer.
 fn pack_color(r: u8, g: u8, b: u8, a: Option<u8>) -> u32 {
@@ -106,12 +108,12 @@ fn main() {
     let map_height = 16;
     let map = Map::new(map_width, map_height);
 
-    let player_x: f32 = 3.456;
-    let player_y: f32 = 2.345;
-    let player_a_degree: f32 = 90.0;
-    let player_a: f32 = player_a_degree * PI / 180.0; // angle between view direction and x axis
-    let player_fov_degree: f32 = 60.0;
-    let player_fov: f32 = player_fov_degree * PI / 180.0;
+    let player = Player {
+        x: 3.456,
+        y: 2.345,
+        a: 90.0 * PI / 180.0,
+        fov: 60.0 * PI / 180.0
+    };
 
     let mut frame_buffer = FrameBuffer::new(
         window_width,
@@ -166,16 +168,16 @@ fn main() {
 
     // Draw rays
     let rays_number = window_width / 2;
-    let starting_angle = player_a - player_fov / 2.0;
+    let starting_angle = player.a - player.fov / 2.0;
     for i in 0..rays_number {
-        let offset = player_fov * i as f32 / rays_number as f32;
+        let offset = player.fov * i as f32 / rays_number as f32;
         let angle = starting_angle + offset;
 
         for t in 0..1500 {
             // Slide point along the ray by varying t value
             let t = t as f32 * 0.01;
-            let cx = player_x + t * angle.cos();
-            let cy = player_y + t * angle.sin();
+            let cx = player.x + t * angle.cos();
+            let cy = player.y + t * angle.sin();
 
             let mut pix_x = (cx * rect_w as f32) as i32;
             let mut pix_y = (cy * rect_h as f32) as i32;
@@ -187,7 +189,7 @@ fn main() {
                 assert!(texture_id < wall_texture_count);
 
                 let column_height =
-                    (window_height as f32 / (t * (angle - player_a).cos())) as usize;
+                    (window_height as f32 / (t * (angle - player.a).cos())) as usize;
 
                 let hit_x = cx - (cx + 0.5).floor(); // take fractional part of x
                 let hit_y = cy - (cy + 0.5).floor(); // take fractional part of y
