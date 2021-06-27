@@ -6,12 +6,12 @@ pub struct FrameBuffer {
 }
 
 impl FrameBuffer {
-    pub fn new(width: i32, height: i32, image: Vec<u32>) -> Box<Self> {
-        Box::new(Self {
+    pub fn new(width: i32, height: i32, image: Vec<u32>) -> Self {
+        Self {
             width,
             height,
             image,
-        })
+        }
     }
 
     pub fn set_pixel(&mut self, x: i32, y: i32, color: u32) {
