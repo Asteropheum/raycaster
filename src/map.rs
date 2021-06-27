@@ -30,7 +30,7 @@ impl Map {
         }
     }
 
-    pub fn get(&self, i: i32, j: i32) -> usize {
+    pub fn get(&self, i: i32, j: i32) -> u32 {
         assert!(
             i < self.width
                 && j < self.height
@@ -38,7 +38,7 @@ impl Map {
         );
         self.map[(i + j * self.width) as usize]
             .to_digit(10)
-            .unwrap() as usize
+            .unwrap()
     }
 
     pub fn is_empty(&self, i: i32, j: i32) -> bool {

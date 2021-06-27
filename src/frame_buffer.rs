@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct FrameBuffer {
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
     pub image: Vec<u32>,
 }
 

@@ -1,13 +1,15 @@
 mod frame_buffer;
 mod map;
 mod player;
+mod texture;
 
 use crate::frame_buffer::FrameBuffer;
 use crate::map::Map;
+use crate::player::Player;
+use crate::texture::Texture;
 use std::f32::consts::PI;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
-use crate::player::Player;
 
 /// Store each RGBA u8 component in one u32 integer.
 fn pack_color(r: u8, g: u8, b: u8, a: Option<u8>) -> u32 {
@@ -38,68 +40,6 @@ fn drop_ppm_image(filename: &str, image: &[u32], width: usize, height: usize) {
     }
 }
 
-fn load_texture(
-    filename: &str,
-    texture: &mut Vec<u32>,
-    texture_size: &mut usize,
-    texture_count: &mut usize,
-) -> Result<Vec<u32>, image::ImageError> {
-    let rgba_img = image::open(filename)?
-        .as_rgba8()
-        .expect("Cannot open texture")
-        .to_owned();
-
-    let width = rgba_img.width() as usize;
-    let height = rgba_img.height() as usize;
-
-    *texture_count = (width / height) as usize;
-    *texture_size = width as usize / *texture_count;
-
-    if width != height * *texture_count {
-        return Err(image::ImageError::FormatError(String::from(
-            "Texture file doesn't contain enough packed square textures",
-        )));
-    }
-
-    let mut texture = vec![0; width * height];
-    let rgba_img = rgba_img.to_vec();
-
-    for j in 0..height {
-        for i in 0..width {
-            let r = rgba_img[(i + j * width) * 4];
-            let g = rgba_img[(i + j * width) * 4 + 1];
-            let b = rgba_img[(i + j * width) * 4 + 2];
-            let a = rgba_img[(i + j * width) * 4 + 3];
-            texture[i + j * width] = pack_color(r, g, b, Some(a));
-        }
-    }
-
-    Ok(texture)
-}
-
-fn texture_column(
-    img: &[u32],
-    texture_size: usize,
-    n_textures: usize,
-    texture_id: usize,
-    texture_coord: usize,
-    column_height: usize,
-) -> Vec<u32> {
-    let img_w = texture_size * n_textures;
-    let img_h = texture_size;
-    assert!(img.len() == img_w * img_h && texture_coord < texture_size && texture_id < n_textures);
-
-    let mut column = vec![0; column_height];
-
-    for (y, item) in column.iter_mut().enumerate().take(column_height) {
-        let pix_x = texture_id * texture_size + texture_coord;
-        let pix_y = (y * texture_size) / column_height;
-        *item = img[pix_x + pix_y * img_w];
-    }
-
-    column
-}
-
 fn main() {
     let window_width = 1024;
     let window_height = 512;
@@ -112,7 +52,7 @@ fn main() {
         x: 3.456,
         y: 2.345,
         a: 90.0 * PI / 180.0,
-        fov: 60.0 * PI / 180.0
+        fov: 60.0 * PI / 180.0,
     };
 
     let mut frame_buffer = FrameBuffer::new(
@@ -121,22 +61,8 @@ fn main() {
         vec![pack_color(255, 255, 255, None); (window_width * window_height) as usize],
     );
 
-    let mut wall_texture: Vec<u32> = Vec::new();
-    let mut wall_texture_size: usize = 0;
-    let mut wall_texture_count: usize = 0;
-
-    wall_texture = match load_texture(
-        "./resources/walltext.png",
-        &mut wall_texture,
-        &mut wall_texture_size,
-        &mut wall_texture_count,
-    ) {
-        Ok(texture) => texture,
-        Err(error) => {
-            println!("error when loading texture: {}", error);
-            vec![pack_color(100, 100, 100, None), 64 * 64 * 6]
-        }
-    };
+    let wall_texture_struct =
+        Texture::new("./resources/walltext.png").expect("can not load texture");
 
     let rect_w = window_width / (map_width * 2) as i32;
     let rect_h = window_height / map_height;
@@ -153,15 +79,17 @@ fn main() {
             let rect_x = i as i32 * rect_w;
             let rect_y = j as i32 * rect_h;
 
-            let texture_id: usize = map.get(i, j);
-            assert!(texture_id < wall_texture_count);
+            let texture_id = map.get(i, j);
+            assert!(texture_id < wall_texture_struct.count);
 
             frame_buffer.draw_rectangle(
                 rect_x,
                 rect_y,
                 rect_w,
                 rect_h,
-                wall_texture[texture_id * wall_texture_size],
+                wall_texture_struct
+                    .get(0, 0, texture_id)
+                    .expect("can not get pixel"),
             );
         }
     }
@@ -186,7 +114,7 @@ fn main() {
 
             if !map.is_empty(cx as i32, cy as i32) {
                 let texture_id = map.get(cx as i32, cy as i32);
-                assert!(texture_id < wall_texture_count);
+                assert!(texture_id < wall_texture_struct.count);
 
                 let column_height =
                     (window_height as f32 / (t * (angle - player.a).cos())) as usize;
@@ -196,38 +124,30 @@ fn main() {
 
                 // If we multiply fractional part by texture size,
                 // we'll get corresponding column in the texture image.
-                let mut x_texture_coord: i64 = (hit_x * wall_texture_size as f32) as i64;
+                let mut x_texture_coord: i64 = (hit_x * wall_texture_struct.size as f32) as i64;
                 if hit_y.abs() > hit_x.abs() {
                     // We also have vertical walls, i.e. the walls where
                     // the hit_x will be close to zero. The texture column
                     // is defined by hit_y in this case.
-                    x_texture_coord = (hit_y * wall_texture_size as f32) as i64;
+                    x_texture_coord = (hit_y * wall_texture_struct.size as f32) as i64;
                 }
 
                 if x_texture_coord < 0 {
-                    x_texture_coord += wall_texture_size as i64;
+                    x_texture_coord += wall_texture_struct.size as i64;
                 }
-                assert!(x_texture_coord >= 0 && x_texture_coord < wall_texture_size as i64);
+                assert!(x_texture_coord >= 0 && x_texture_coord < wall_texture_struct.size as i64);
 
-                let column = texture_column(
-                    &wall_texture,
-                    wall_texture_size,
-                    wall_texture_count,
-                    texture_id,
-                    x_texture_coord as usize,
-                    column_height,
-                );
+                let column = wall_texture_struct
+                    .get_scaled_column(texture_id, x_texture_coord as u32, column_height as u32)
+                    .expect("can not get column");
 
                 pix_x = window_width as i32 / 2 + i as i32;
 
-                for (j, item) in column.iter().enumerate().take(column_height) {
-                    pix_y = j as i32 + window_height as i32 / 2 - column_height as i32 / 2;
-
-                    if pix_y < 0 || pix_y >= window_height as i32 {
-                        continue;
+                for j in 0..column_height {
+                    let pix_y = j as i32 + frame_buffer.height / 2 - (column_height / 2) as i32;
+                    if pix_y < frame_buffer.height {
+                        frame_buffer.set_pixel(pix_x, pix_y as i32, column[j as usize]);
                     }
-
-                    frame_buffer.set_pixel(pix_x, pix_y, *item);
                 }
                 break;
             }
