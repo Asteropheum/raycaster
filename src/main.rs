@@ -1,11 +1,11 @@
 mod frame_buffer;
+mod map;
 
 use crate::frame_buffer::FrameBuffer;
-use std::convert::TryInto;
+use crate::map::Map;
 use std::f32::consts::PI;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
-use std::ops::Deref;
 
 /// Store each RGBA u8 component in one u32 integer.
 fn pack_color(r: u8, g: u8, b: u8, a: Option<u8>) -> u32 {
@@ -104,26 +104,7 @@ fn main() {
 
     let map_width = 16;
     let map_height = 16;
-    let map: Vec<char> = "0000222222220000\
-                          1              0\
-                          1      11111   0\
-                          1     0        0\
-                          0     0  1110000\
-                          0     3        0\
-                          0   10000      0\
-                          0   3   11100  0\
-                          5   4   0      0\
-                          5   4   1  00000\
-                          0       1      0\
-                          2       1      0\
-                          0       0      0\
-                          0 0000000      0\
-                          0              0\
-                          0002222222200000"
-        .chars()
-        .collect();
-
-    assert_eq!(map.len(), map_width * map_width);
+    let map = Map::new(map_width, map_height);
 
     let player_x: f32 = 3.456;
     let player_y: f32 = 2.345;
@@ -161,22 +142,20 @@ fn main() {
     let output_dir = "./out/";
     create_dir_all(output_dir).expect("can not create output directory");
 
-    // Draw map
+    // Draw MAP
     for j in 0..map_height {
         for i in 0..map_width {
-            if map[(i as i32 + j * map_width as i32) as usize] == ' ' {
+            if map.is_empty(i, j) {
                 continue;
             }
             let rect_x = i as i32 * rect_w;
             let rect_y = j as i32 * rect_h;
 
-            let texture_id: usize = map[(i as i32 + j * map_width as i32) as usize]
-                .to_digit(10)
-                .unwrap() as usize;
+            let texture_id: usize = map.get(i, j);
             assert!(texture_id < wall_texture_count);
 
             frame_buffer.draw_rectangle(
-                rect_x.try_into().unwrap(),
+                rect_x,
                 rect_y,
                 rect_w,
                 rect_h,
@@ -203,10 +182,8 @@ fn main() {
 
             frame_buffer.set_pixel(pix_x, pix_y, pack_color(160, 160, 160, None));
 
-            if map[cx as usize + cy as usize * map_width] != ' ' {
-                let texture_id = map[cx as usize + cy as usize * map_width]
-                    .to_digit(10)
-                    .unwrap() as usize;
+            if !map.is_empty(cx as i32, cy as i32) {
+                let texture_id = map.get(cx as i32, cy as i32);
                 assert!(texture_id < wall_texture_count);
 
                 let column_height =
