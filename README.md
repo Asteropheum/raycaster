@@ -1,6 +1,6 @@
 ## Ray casting renderer
 
-In order to run the render, clone the repository and execute the following command:
+In order to run the renderer, clone the repository and execute the following command:
 ```
 ./cargo run
 ```
