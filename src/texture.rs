@@ -20,12 +20,6 @@ impl Texture {
         let texture_count = (width / height) as usize;
         let texture_size = width as usize / texture_count;
 
-        if width != height * texture_count as u32 {
-            return Err(image::ImageError::FormatError(String::from(
-                "Texture file doesn't contain enough packed square textures",
-            )));
-        }
-
         let mut texture = vec![0; (width * height) as usize];
         let rgba_img = rgba_img.to_vec();
 
