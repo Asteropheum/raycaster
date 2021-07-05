@@ -120,12 +120,7 @@ fn render(frame_buffer: &mut FrameBuffer, map: &Map, player: &Player, wall_textu
 }
 
 fn main() {
-    let window_width = 1024;
-    let window_height = 512;
-
-    let map_width = 16;
-    let map_height = 16;
-    let map = Map::new(map_width, map_height);
+    let map = Map::new(16, 16);
 
     let player = Player {
         x: 3.456,
@@ -135,13 +130,12 @@ fn main() {
     };
 
     let mut frame_buffer = FrameBuffer::new(
-        window_width,
-        window_height,
-        vec![pack_color(255, 255, 255, None); (window_width * window_height) as usize],
+        1024,
+        512,
+        vec![pack_color(255, 255, 255, None); (1024 * 512) as usize],
     );
 
-    let wall_texture =
-        Texture::new("./resources/walltext.png").expect("can not load texture");
+    let wall_texture = Texture::new("./resources/walltext.png").expect("can not load texture");
 
     render(&mut frame_buffer, &map, &player, &wall_texture);
 
