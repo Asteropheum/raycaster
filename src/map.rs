@@ -1,6 +1,6 @@
 pub struct Map {
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
     map: Vec<char>,
 }
 
